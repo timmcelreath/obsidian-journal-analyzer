@@ -1,0 +1,11 @@
+{
+	"id": "journal-analyzer",
+	"name": "Journal Analyzer",
+	"version": "0.1.0",
+	"minAppVersion": "0.15.0",
+	"description": "Analyzes journal entries using Claude Code to surface patterns, themes, and insights across time",
+	"author": "Tim McElreath",
+	"authorUrl": "https://github.com/timmcelreath",
+	"fundingUrl": "",
+	"isDesktopOnly": false
+}
