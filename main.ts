@@ -466,17 +466,67 @@ ${entry}
 		}
 	}
 
+	async expandJournalEntry(briefEntry: string): Promise<string> {
+		const prompt = `I have a brief journal entry that needs to be expanded into a detailed, thoughtful journal entry.
+
+Please expand the following brief notes into a well-structured journal entry with:
+- Clear headers and subheaders
+- Detailed analysis and context
+- Multiple perspectives on the situation
+- Self-reflection and honest assessment
+- Questions to consider
+- Next steps (immediate and strategic)
+- Related connections or themes
+
+Format the response as markdown with proper structure. Include wiki-link suggestions in [[double brackets]] where appropriate for related concepts, people, or past entries.
+
+Brief entry:
+${briefEntry}
+
+Expanded journal entry:`;
+
+		try {
+			const os = require('os');
+			const fs = require('fs');
+			const tempFile = `${os.tmpdir()}/journal-expansion-${Date.now()}.txt`;
+
+			await fs.promises.writeFile(tempFile, prompt);
+
+			const { stdout, stderr } = await execAsync(`cat "${tempFile}" | ${this.settings.claudeCodePath}`);
+
+			await fs.promises.unlink(tempFile);
+
+			if (stderr) {
+				console.warn('Claude Code stderr:', stderr);
+			}
+
+			if (!stdout || stdout.trim().length === 0) {
+				throw new Error('Claude Code returned empty response');
+			}
+
+			return stdout.trim();
+
+		} catch (error) {
+			console.error('Error expanding journal entry:', error);
+			throw new Error(`Failed to expand journal entry: ${error.message}`);
+		}
+	}
+
 	async quickJournalWithAnalysis(entry: string) {
 		const progressModal = new ProgressModal(this.app);
 		progressModal.open();
 
 		try {
-			// Save entry
+			// Expand entry with Claude Code
+			progressModal.updateProgress('Expanding journal entry with AI...\n(This may take 30-60 seconds)');
+			const expandedEntry = await this.expandJournalEntry(entry);
+
+			// Save expanded entry
 			progressModal.updateProgress('Saving journal entry...');
-			const journalFile = await this.saveJournalEntry(entry);
+			const journalFile = await this.saveJournalEntry(expandedEntry);
 
 			// Analyze connections
-			progressModal.updateProgress('Analyzing connections...\n(This may take 30-60 seconds)');
+			progressModal.updateProgress('Analyzing connections...\n(This may take another 30-60 seconds)');
 			const allFiles = this.app.vault.getMarkdownFiles();
 			const connections = await this.analyzeConnections(journalFile, allFiles, progressModal);
 
@@ -804,11 +854,22 @@ class QuickJournalModal extends Modal {
 			}
 
 			this.close();
+
+			const progressModal = new ProgressModal(this.app);
+			progressModal.open();
+
 			try {
-				const journalFile = await this.plugin.saveJournalEntry(entry);
+				progressModal.updateProgress('Expanding journal entry with AI...\n(This may take 30-60 seconds)');
+				const expandedEntry = await this.plugin.expandJournalEntry(entry);
+
+				progressModal.updateProgress('Saving journal entry...');
+				const journalFile = await this.plugin.saveJournalEntry(expandedEntry);
+
+				progressModal.close();
 				new Notice('Journal entry saved!');
 				await this.app.workspace.getLeaf().openFile(journalFile);
 			} catch (error) {
+				progressModal.close();
 				new Notice(`Error saving entry: ${error.message}`);
 			}
 		});
